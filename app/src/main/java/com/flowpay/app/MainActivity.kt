@@ -1,9 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Flowpay
-//
-// Home screen: the entry point to both payment rails (Scan QR and Pay
-// Contact), recent payments, and settings. UI only — the transfer
-// orchestration and permission gating live in MainActivityHelper.
 
 package com.flowpay.app
 
@@ -28,20 +24,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -50,38 +33,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountBalanceWallet
-import androidx.compose.material.icons.filled.ArrowOutward
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.PermContactCalendar
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.QrCode
-import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -118,18 +73,7 @@ import com.flowpay.app.ui.activities.SettingsActivity
 import com.flowpay.app.ui.activities.TransactionHistoryActivity
 import com.flowpay.app.ui.components.TransactionDetailDialog
 import com.flowpay.app.ui.dialogs.ContactPickerDialog
-import com.flowpay.app.ui.theme.BlueAccentTheme
-import com.flowpay.app.ui.theme.FlowpayDarkGray
-import com.flowpay.app.ui.theme.FlowpayLightGray
-import com.flowpay.app.ui.theme.FlowpayMediumGray
-import com.flowpay.app.ui.theme.FlowpayOutlineGray
-import com.flowpay.app.ui.theme.FlowpayStatusError
-import com.flowpay.app.ui.theme.FlowpaySurfaceDim
-import com.flowpay.app.ui.theme.FlowpayTextGray
-import com.flowpay.app.ui.theme.FlowpayTextLightGray
-import com.flowpay.app.ui.theme.FlowpayTextPale
-import com.flowpay.app.ui.theme.FlowpayTheme
-import com.flowpay.app.ui.theme.LocalFlowpayAccentTheme
+import com.flowpay.app.ui.theme.*
 import com.flowpay.app.utils.CurrencyFormat
 import com.flowpay.app.utils.findComponentActivity
 import com.flowpay.app.viewmodel.MainUiEvent
@@ -144,25 +88,15 @@ class MainActivity : ComponentActivity() {
         private const val TAG = "Flowpay"
     }
 
-    // Helper for all business logic
     private lateinit var helper: MainActivityHelper
-
-    // Shared with MainScreen (same instance via Compose viewModel()); carries
-    // one-shot Activity -> Compose events, replacing the old static callbacks.
     private val mainViewModel: MainViewModel by viewModels()
 
-    // Launches QRScannerActivity and, on return, un-sticks the QR button's
-    // "Opening..." state via a QrScannerClosed event.
     private val qrScannerLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) {
         mainViewModel.onQrScannerClosed()
     }
 
-    // Launches the system "draw over other apps" settings screen; on return,
-    // re-checks the permission and reports the outcome via toast (there is
-    // no reliable resultCode for this settings screen, so re-checking is
-    // the only correct way to know what happened).
     private val overlayPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) {
@@ -175,8 +109,6 @@ class MainActivity : ComponentActivity() {
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
     }
 
-    // Phone-call permission group, requested before dialing or QR scanning.
-    // There is no auto-retry: the user re-taps the action once granted.
     private val phonePermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { results ->
@@ -190,15 +122,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         setTheme(R.style.Theme_Flowpay)
-
-        // Draw edge-to-edge so Compose's statusBarsPadding()/navigationBarsPadding()
-        // are the single source of inset padding. The theme previously also set
-        // android:fitsSystemWindows=true, which made the decor pad the content as
-        // well — a double inset that, depending on inset-dispatch timing, showed
-        // intermittent black bars at the top and bottom.
         androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
 
-        // Black system bars from the first frame
         window.statusBarColor = android.graphics.Color.BLACK
         window.navigationBarColor = android.graphics.Color.BLACK
         window.setBackgroundDrawableResource(android.R.color.black)
@@ -213,7 +138,6 @@ class MainActivity : ComponentActivity() {
         }
         window.decorView.post { enforceBlackStatusBar() }
 
-        // Initialize helper with UI callbacks (matches the 6-method UICallback)
         helper = MainActivityHelper(
             this,
             object : MainActivityHelper.UICallback {
@@ -255,12 +179,6 @@ class MainActivity : ComponentActivity() {
 
         helper.initialize()
 
-        // The launch gate must know which screen to show before rendering, so
-        // these two SharedPreferences flags are read synchronously. Reading
-        // them faults the prefs file in once (a small, one-time disk read);
-        // annotate it as permitted so the debug StrictMode tripwire stays
-        // sharp for genuinely unexpected main-thread disk I/O instead of
-        // crying wolf on this known-safe read every launch.
         val setupCompleted: Boolean
         val testCompleted: Boolean
         val oldPolicy = android.os.StrictMode.allowThreadDiskReads()
@@ -315,10 +233,6 @@ class MainActivity : ComponentActivity() {
     private fun enforceBlackStatusBar() {
         window.statusBarColor = android.graphics.Color.BLACK
         window.navigationBarColor = android.graphics.Color.BLACK
-        // Dark bars => light (white) icons. WindowInsetsControllerCompat
-        // routes through WindowInsetsController on API 30+ and the legacy
-        // systemUiVisibility flags on API 29, replacing the deprecated
-        // direct flag manipulation.
         androidx.core.view.WindowInsetsControllerCompat(window, window.decorView)
             .isAppearanceLightStatusBars = false
     }
@@ -334,12 +248,10 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-// Payment Action Buttons - QR scan + Pay Contact.
-//
-// Each rail is locked until its own connectivity test has passed: Scan QR
-// dials *99#, Pay Contact dials the UPI 123 IVR. One composable per button,
-// because the locked/unlocked branches on both pushed the combined function
-// past detekt's complexity and parameter limits.
+// ═════════════════════════════════════════════════════════════════════
+// MODERN BENTO QUICK ACTIONS (Side-by-Side AMOLED Cards)
+// ═════════════════════════════════════════════════════════════════════
+
 @Composable
 fun PaymentActionButtons(
     onQRScanClick: () -> Unit,
@@ -348,222 +260,133 @@ fun PaymentActionButtons(
     isUssdReady: Boolean,
     isScanning: Boolean
 ) {
-    Column(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+            .padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        ScanQrButton(onQRScanClick, isUssdReady, isScanning)
-        PayContactButton(onPayContactClick, isUpi123Ready)
-    }
-}
-
-/** Scan QR — locked until the *99# connectivity test has passed. */
-@Composable
-private fun ScanQrButton(
-    onQRScanClick: () -> Unit,
-    isUssdReady: Boolean,
-    isScanning: Boolean
-) {
-    var isQRPressed by remember { mutableStateOf(false) }
-    val qrButtonScale by animateFloatAsState(
-        targetValue = if (isQRPressed) 0.94f else 1f,
-        animationSpec = tween(durationMillis = 200),
-        label = "QR Button Scale"
-    )
-    // Scan QR Button
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        Box(
+        // Modern Scan QR Tile
+        Surface(
             modifier = Modifier
-                .size(70.dp)
-                .shadow(
-                    elevation = 12.dp,
-                    shape = CircleShape,
-                    ambientColor = LocalFlowpayAccentTheme.current.headerGradientStart.copy(alpha = 0.3f),
-                    spotColor = LocalFlowpayAccentTheme.current.headerGradientEnd.copy(alpha = 0.4f)
-                )
-                .scale(qrButtonScale)
-                .background(
-                    brush = if (isUssdReady) {
-                        Brush.linearGradient(
-                            colors = listOf(
-                                LocalFlowpayAccentTheme.current.headerGradientStart,
-                                LocalFlowpayAccentTheme.current.headerGradientEnd
-                            ),
-                            start = Offset(0f, 0f),
-                            end = Offset(1f, 1f)
+                .weight(1f)
+                .height(115.dp)
+                .clip(RoundedCornerShape(22.dp))
+                .border(
+                    width = 1.dp,
+                    brush = Brush.linearGradient(
+                        colors = listOf(
+                            Color.White.copy(alpha = 0.15f),
+                            Color.White.copy(alpha = 0.03f)
                         )
-                    } else {
-                        Brush.linearGradient(colors = listOf(FlowpaySurfaceDim, FlowpaySurfaceDim))
-                    },
-                    shape = CircleShape
+                    ),
+                    shape = RoundedCornerShape(22.dp)
                 )
-                .border(1.dp, Color.White.copy(alpha = 0.15f), CircleShape)
-                .pointerInput(Unit) {
-                    detectTapGestures(
-                        onPress = {
-                            if (!isScanning) {
-                                isQRPressed = true
-                                tryAwaitRelease()
-                                isQRPressed = false
-                            }
-                        },
-                        onTap = { if (!isScanning) onQRScanClick() }
+                .clickable { if (!isScanning) onQRScanClick() },
+            color = FlowpayDarkGray
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (isUssdReady) Color(0xFF3B82F6).copy(alpha = 0.20f)
+                            else Color.White.copy(alpha = 0.06f)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (!isUssdReady) Icons.Default.Lock else Icons.Default.QrCodeScanner,
+                        contentDescription = "Scan QR",
+                        tint = if (isUssdReady) Color(0xFF60A5FA) else FlowpayTextLightGray,
+                        modifier = Modifier.size(22.dp)
                     )
-                },
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = when {
-                    !isUssdReady -> Icons.Default.Lock
-                    isScanning -> Icons.Default.QrCode
-                    else -> Icons.Default.QrCodeScanner
-                },
-                contentDescription = stringResource(
-                    if (isUssdReady) R.string.home_scan_qr else R.string.home_setup_ussd
-                ),
-                tint = if (isUssdReady) Color.White else Color.White.copy(alpha = 0.5f),
-                modifier = Modifier.size(32.dp)
-            )
-        }
-
-        Text(
-            text = when {
-                !isUssdReady -> stringResource(R.string.home_setup_ussd)
-                isScanning -> stringResource(R.string.home_scan_opening)
-                else -> stringResource(R.string.home_scan_qr)
-            },
-            fontSize = 15.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = if (isUssdReady) Color.White else FlowpayTextLightGray,
-            textAlign = TextAlign.Center,
-            style = TextStyle(
-                shadow = Shadow(Color.Black.copy(alpha = 0.6f), Offset(0f, 1f), 3f)
-            )
-        )
-    }
-
-    // OR Divider
-    Row(
-        modifier = Modifier.padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center
-    ) {
-        Box(
-            modifier = Modifier
-                .width(50.dp)
-                .height(1.dp)
-                .background(Color.White.copy(alpha = 0.3f))
-        )
-        Spacer(modifier = Modifier.width(12.dp))
-        Box(
-            modifier = Modifier
-                .background(Color.White.copy(alpha = 0.1f), CircleShape)
-                .padding(horizontal = 10.dp, vertical = 4.dp)
-        ) {
-            Text(
-                text = "OR",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-                color = Color.White.copy(alpha = 0.8f)
-            )
-        }
-        Spacer(modifier = Modifier.width(12.dp))
-        Box(
-            modifier = Modifier
-                .width(50.dp)
-                .height(1.dp)
-                .background(Color.White.copy(alpha = 0.3f))
-        )
-    }
-}
-
-/** Pay Contact — locked until the UPI 123 IVR connectivity test has passed. */
-@Composable
-private fun PayContactButton(
-    onPayContactClick: () -> Unit,
-    isUpi123Ready: Boolean
-) {
-    var isPayPressed by remember { mutableStateOf(false) }
-    val payButtonScale by animateFloatAsState(
-        targetValue = if (isPayPressed) 0.94f else 1f,
-        animationSpec = tween(durationMillis = 200),
-        label = "Pay Button Scale"
-    )
-    // Pay Contact Button — inactive until the UPI 123 IVR test has
-    // passed; in that state it prompts for setup and tapping it opens
-    // the *99# / UPI 123 test screen.
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .size(70.dp)
-                .shadow(
-                    elevation = if (isUpi123Ready) 12.dp else 0.dp,
-                    shape = RoundedCornerShape(20.dp),
-                    ambientColor = LocalFlowpayAccentTheme.current.headerGradientStart.copy(alpha = 0.3f),
-                    spotColor = LocalFlowpayAccentTheme.current.headerGradientEnd.copy(alpha = 0.4f)
-                )
-                .scale(payButtonScale)
-                .background(
-                    brush = if (isUpi123Ready) {
-                        Brush.linearGradient(
-                            colors = listOf(
-                                LocalFlowpayAccentTheme.current.headerGradientStart,
-                                LocalFlowpayAccentTheme.current.headerGradientEnd
-                            ),
-                            start = Offset(0f, 0f),
-                            end = Offset(1f, 1f)
-                        )
-                    } else {
-                        Brush.linearGradient(
-                            colors = listOf(FlowpayMediumGray, FlowpayDarkGray),
-                            start = Offset(0f, 0f),
-                            end = Offset(1f, 1f)
-                        )
-                    },
-                    shape = RoundedCornerShape(20.dp)
-                )
-                .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(20.dp))
-                .pointerInput(Unit) {
-                    detectTapGestures(
-                        onPress = {
-                            isPayPressed = true
-                            tryAwaitRelease()
-                            isPayPressed = false
-                        },
-                        onTap = { onPayContactClick() }
+                }
+                Column {
+                    Text(
+                        text = if (isScanning) "Opening..." else "Scan QR",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
                     )
-                },
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = if (isUpi123Ready) Icons.Default.Person else Icons.Default.Lock,
-                contentDescription = if (isUpi123Ready) "Pay Contact" else "Set up UPI 123 IVR",
-                tint = if (isUpi123Ready) Color.White else Color.White.copy(alpha = 0.5f),
-                modifier = Modifier.size(32.dp)
-            )
+                    Text(
+                        text = if (isUssdReady) "Offline USSD" else "Needs Setup",
+                        fontSize = 11.sp,
+                        color = FlowpayTextLightGray
+                    )
+                }
+            }
         }
 
-        Text(
-            text = if (isUpi123Ready) "Pay Contact" else "Set up UPI 123 IVR",
-            fontSize = 15.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = if (isUpi123Ready) Color.White else FlowpayTextLightGray,
-            textAlign = TextAlign.Center,
-            style = TextStyle(
-                shadow = Shadow(Color.Black.copy(alpha = 0.6f), Offset(0f, 1f), 3f)
-            )
-        )
+        // Modern Pay Contact Tile
+        Surface(
+            modifier = Modifier
+                .weight(1f)
+                .height(115.dp)
+                .clip(RoundedCornerShape(22.dp))
+                .border(
+                    width = 1.dp,
+                    brush = Brush.linearGradient(
+                        colors = listOf(
+                            Color.White.copy(alpha = 0.15f),
+                            Color.White.copy(alpha = 0.03f)
+                        )
+                    ),
+                    shape = RoundedCornerShape(22.dp)
+                )
+                .clickable { onPayContactClick() },
+            color = FlowpayDarkGray
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (isUpi123Ready) Color(0xFF10B981).copy(alpha = 0.20f)
+                            else Color.White.copy(alpha = 0.06f)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (isUpi123Ready) Icons.Default.Person else Icons.Default.Lock,
+                        contentDescription = "Pay Contact",
+                        tint = if (isUpi123Ready) Color(0xFF34D399) else FlowpayTextLightGray,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+                Column {
+                    Text(
+                        text = "Pay Contact",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Text(
+                        text = if (isUpi123Ready) "UPI 123Pay IVR" else "Setup Required",
+                        fontSize = 11.sp,
+                        color = FlowpayTextLightGray
+                    )
+                }
+            }
+        }
     }
 }
+
+// ═════════════════════════════════════════════════════════════════════
+// MAIN SCREEN WITH MODERN GLOWING BANK CARD
+// ═════════════════════════════════════════════════════════════════════
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -580,18 +403,11 @@ fun MainScreen(
         mutableStateOf(sharedPreferences.getString(AppConstants.KEY_SELECTED_BANK, "hdfc") ?: "hdfc")
     }
 
-    // Pay Contact dials the UPI 123 IVR, so it stays inactive until the
-    // UPI 123 configuration test has passed (re-checked on every resume so
-    // completing the test activates it immediately).
     val testResultsManager = remember { TestResultsManager(context) }
     var isUpi123Ready by remember {
         mutableStateOf(testResultsManager.getTestResults()?.upi123Enabled == true)
     }
 
-    // Scan QR dials *99#, so it stays locked until the *99# test has passed —
-    // the same gate Pay Contact has always had for the UPI 123 IVR. Without
-    // it the scanner opened, read a QR, and only then dialled a rail this SIM
-    // may not support.
     var isUssdReady by remember {
         mutableStateOf(testResultsManager.getTestResults()?.ussdEnabled == true)
     }
@@ -623,9 +439,6 @@ fun MainScreen(
         hostActivity?.let { PermissionManager(it) }
     }
 
-    // Runs the queued action (start scan / open pay dialog / initiate transfer)
-    // once RECEIVE_SMS is granted; the launcher stays Compose-scoped so no
-    // Activity-level callback bridge is needed.
     val smsPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
@@ -641,15 +454,9 @@ fun MainScreen(
         pendingSmsAction = null
     }
 
-    // POST_NOTIFICATIONS backs the payment-outcome notification — the
-    // fallback the result screen relies on when its direct background launch
-    // is blocked (see PaymentResultNotifier). It is best-effort, not a
-    // prerequisite, so we ask ONCE at the first payment and never block on the
-    // result: the payment proceeds whether granted or not. Settings offers a
-    // later toggle for anyone who declines.
     val postNotificationsLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { /* best-effort: outcome recorded by the OS; nothing to do here */ }
+    ) { }
     val maybeAskNotifications = remember(context) {
         {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -668,8 +475,6 @@ fun MainScreen(
         }
     }
 
-    // One-shot events from MainActivity (launchers + business-logic helper),
-    // replacing the former static @Volatile callbacks on its companion.
     val mainViewModel: MainViewModel = viewModel()
     LaunchedEffect(Unit) {
         mainViewModel.events.collect { event ->
@@ -680,7 +485,6 @@ fun MainScreen(
         }
     }
 
-    // Reset scanning + refresh list whenever the app resumes
     LaunchedEffect(lifecycle) {
         snapshotFlow { lifecycle.currentState }.collect { state ->
             if (state == Lifecycle.State.RESUMED) {
@@ -690,7 +494,6 @@ fun MainScreen(
         }
     }
 
-    // Safety: never leave the QR button stuck in "Opening..."
     LaunchedEffect(isScanning) {
         if (isScanning) {
             kotlinx.coroutines.delay(AppConstants.USSD_SESSION_TIMEOUT)
@@ -731,153 +534,117 @@ fun MainScreen(
                     .navigationBarsPadding()
                     .verticalScroll(rememberScrollState())
             ) {
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-                // Header Card
+                // ═══ MODERN LUXURY BANK CARD ═══
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                        .height(220.dp)
-                        .shadow(
-                            elevation = 8.dp,
-                            shape = RoundedCornerShape(20.dp),
-                            ambientColor = Color.Black.copy(alpha = 0.15f),
-                            spotColor = Color.Black.copy(alpha = 0.15f)
+                        .padding(horizontal = 16.dp, vertical = 6.dp)
+                        .height(195.dp)
+                        .clip(RoundedCornerShape(26.dp))
+                        .border(
+                            width = 1.dp,
+                            brush = Brush.linearGradient(
+                                listOf(Color(0xFF60A5FA).copy(alpha = 0.45f), Color.White.copy(alpha = 0.05f))
+                            ),
+                            shape = RoundedCornerShape(26.dp)
                         ),
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                    shape = RoundedCornerShape(26.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.Transparent)
                 ) {
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth()
+                            .fillMaxSize()
                             .background(
-                                brush = Brush.verticalGradient(
+                                brush = Brush.linearGradient(
                                     colors = listOf(
-                                        LocalFlowpayAccentTheme.current.headerGradientStart,
-                                        LocalFlowpayAccentTheme.current.headerGradientEnd
+                                        Color(0xFF1E293B),
+                                        Color(0xFF0F172A)
                                     )
-                                ),
-                                shape = RoundedCornerShape(20.dp)
+                                )
                             )
+                            .padding(22.dp)
                     ) {
                         Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(20.dp)
+                            modifier = Modifier.fillMaxSize(),
+                            verticalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Spacer(modifier = Modifier.height(4.dp))
-
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.Top
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "Flowpay",
-                                        fontSize = 24.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White,
-                                        style = TextStyle(
-                                            shadow = Shadow(Color.Black.copy(alpha = 0.15f), Offset(0f, 2f), 6f)
-                                        )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(9.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0xFF10B981))
                                     )
-                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = "Payments Without Internet",
-                                        fontSize = 15.sp,
-                                        fontWeight = FontWeight.Normal,
-                                        color = Color.White.copy(alpha = 0.95f)
+                                        text = "OFFLINE UPI ACTIVE",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 1.sp,
+                                        color = Color(0xFF34D399)
                                     )
                                 }
 
-                                // Settings Button
-                                Box(
-                                    modifier = Modifier
-                                        .padding(top = 8.dp, end = 8.dp)
-                                        .size(36.dp)
-                                        .clip(CircleShape)
-                                        .background(Color.White.copy(alpha = 0.22f))
-                                        .clickable(
-                                            indication = null,
-                                            interactionSource = remember { MutableInteractionSource() }
-                                        ) {
-                                            context.startActivity(Intent(context, SettingsActivity::class.java))
-                                        },
-                                    contentAlignment = Alignment.Center
+                                IconButton(
+                                    onClick = { context.startActivity(Intent(context, SettingsActivity::class.java)) },
+                                    modifier = Modifier.size(34.dp)
                                 ) {
                                     Icon(
                                         imageVector = Icons.Outlined.Settings,
                                         contentDescription = "Settings",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(24.dp)
+                                        tint = Color(0xFF94A3B8),
+                                        modifier = Modifier.size(20.dp)
                                     )
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(20.dp))
+                            Column {
+                                Text(
+                                    text = "Connected Bank",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF94A3B8),
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Spacer(modifier = Modifier.height(3.dp))
+                                Text(
+                                    text = selectedBankName,
+                                    fontSize = 22.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color.White
+                                )
+                            }
 
-                            // Bank Info Section
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(80.dp)
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .background(LocalFlowpayAccentTheme.current.headerGradientEnd)
-                                    .padding(horizontal = 18.dp, vertical = 14.dp)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.Bottom
                             ) {
-                                Row(
-                                    modifier = Modifier.fillMaxSize(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column(
-                                        modifier = Modifier.weight(1f),
-                                        verticalArrangement = Arrangement.Center
-                                    ) {
-                                        Text(
-                                            text = "Connected Bank",
-                                            fontSize = 12.sp,
-                                            color = Color.White.copy(alpha = 0.85f),
-                                            maxLines = 1
-                                        )
-                                        Spacer(modifier = Modifier.height(6.dp))
-                                        Text(
-                                            text = selectedBankName,
-                                            fontSize = 18.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.White,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-
-                                    Spacer(modifier = Modifier.width(12.dp))
-
-                                    Box(
-                                        modifier = Modifier
-                                            .size(48.dp)
-                                            .clip(CircleShape)
-                                            .background(Color.White.copy(alpha = 0.22f)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.AccountBalanceWallet,
-                                            contentDescription = "Wallet",
-                                            tint = Color.White,
-                                            modifier = Modifier.size(26.dp)
-                                        )
-                                    }
-                                }
+                                Text(
+                                    text = "No Internet Required",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF64748B)
+                                )
+                                Icon(
+                                    imageVector = Icons.Default.AccountBalanceWallet,
+                                    contentDescription = null,
+                                    tint = Color(0xFF60A5FA),
+                                    modifier = Modifier.size(24.dp)
+                                )
                             }
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(20.dp))
 
+                // Modern Action Grid
                 PaymentActionButtons(
                     onQRScanClick = {
                         maybeAskNotifications()
@@ -885,14 +652,8 @@ fun MainScreen(
                             context, Manifest.permission.RECEIVE_SMS
                         ) == PackageManager.PERMISSION_GRANTED
                         when {
-                            // *99# not verified yet — the button is in its
-                            // "Set up *99#" state; take the user to the test
-                            // screen rather than opening a scanner whose
-                            // payment rail has not been shown to work.
                             !isUssdReady -> {
-                                context.startActivity(
-                                    Intent(context, TestConfigurationActivity::class.java)
-                                )
+                                context.startActivity(Intent(context, TestConfigurationActivity::class.java))
                             }
                             !hasSms -> {
                                 pendingSmsAction = {
@@ -913,17 +674,9 @@ fun MainScreen(
                             context, Manifest.permission.RECEIVE_SMS
                         ) == PackageManager.PERMISSION_GRANTED
                         when {
-                            // UPI 123 IVR not verified yet — the button is in its
-                            // "Set up UPI 123 IVR" state; take the user to the
-                            // *99# / UPI 123 test screen instead of the pay dialog.
                             !isUpi123Ready -> {
-                                context.startActivity(
-                                    Intent(context, TestConfigurationActivity::class.java)
-                                )
+                                context.startActivity(Intent(context, TestConfigurationActivity::class.java))
                             }
-                            // Overlay permission is required before the payment
-                            // call can show its UI, so ask now — not after the
-                            // user has filled in the transfer details.
                             !PermissionManager.canDrawOverlays(context) -> {
                                 showOverlayPermissionDialog = true
                             }
@@ -939,14 +692,14 @@ fun MainScreen(
                     isScanning = isScanning
                 )
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(24.dp))
 
-                // Recent Transactions
+                // ═══ RECENT TRANSACTIONS CARD ═══
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp),
-                    shape = RoundedCornerShape(20.dp),
+                    shape = RoundedCornerShape(22.dp),
                     colors = CardDefaults.cardColors(containerColor = FlowpaySurfaceDim),
                     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
@@ -960,14 +713,14 @@ fun MainScreen(
                                 Box(
                                     modifier = Modifier
                                         .size(36.dp)
-                                        .background(FlowpaySurfaceDim, CircleShape),
+                                        .background(FlowpayDarkGray, CircleShape),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.History,
                                         contentDescription = "History",
                                         modifier = Modifier.size(20.dp),
-                                        tint = LocalFlowpayAccentTheme.current.headerGradientStart
+                                        tint = Color(0xFF60A5FA)
                                     )
                                 }
                                 Spacer(modifier = Modifier.width(12.dp))
@@ -993,13 +746,14 @@ fun MainScreen(
                             ) {
                                 Text(
                                     text = "View All",
-                                    fontSize = 12.sp,
-                                    color = LocalFlowpayAccentTheme.current.accent
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF60A5FA)
                                 )
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(14.dp))
 
                         when {
                             isLoading -> {
@@ -1011,15 +765,8 @@ fun MainScreen(
                                 ) {
                                     CircularProgressIndicator(
                                         modifier = Modifier.size(32.dp),
-                                        color = LocalFlowpayAccentTheme.current.headerGradientStart,
+                                        color = Color(0xFF60A5FA),
                                         strokeWidth = 3.dp
-                                    )
-                                    Spacer(modifier = Modifier.height(20.dp))
-                                    Text(
-                                        text = "Loading transactions...",
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = FlowpayTextLightGray
                                     )
                                 }
                             }
@@ -1033,25 +780,13 @@ fun MainScreen(
                                 ) {
                                     Text(
                                         text = "Failed to load transactions",
-                                        fontSize = 16.sp,
+                                        fontSize = 15.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         color = Color.White
                                     )
-                                    Spacer(modifier = Modifier.height(6.dp))
-                                    Text(
-                                        text = error ?: "Unknown error",
-                                        fontSize = 13.sp,
-                                        color = FlowpayTextLightGray,
-                                        textAlign = TextAlign.Center
-                                    )
-                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Spacer(modifier = Modifier.height(12.dp))
                                     TextButton(onClick = { transactionViewModel.refresh() }) {
-                                        Text(
-                                            text = "Retry",
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            color = LocalFlowpayAccentTheme.current.headerGradientStart
-                                        )
+                                        Text(text = "Retry", color = Color(0xFF60A5FA))
                                     }
                                 }
                             }
@@ -1065,30 +800,29 @@ fun MainScreen(
                                 ) {
                                     Box(
                                         modifier = Modifier
-                                            .size(64.dp)
-                                            .background(FlowpayMediumGray, CircleShape),
+                                            .size(56.dp)
+                                            .background(FlowpayDarkGray, CircleShape),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.History,
                                             contentDescription = "No transactions",
-                                            modifier = Modifier.size(32.dp),
+                                            modifier = Modifier.size(28.dp),
                                             tint = FlowpayTextLightGray
                                         )
                                     }
-                                    Spacer(modifier = Modifier.height(20.dp))
+                                    Spacer(modifier = Modifier.height(14.dp))
                                     Text(
                                         text = "No transactions yet",
-                                        fontSize = 16.sp,
+                                        fontSize = 15.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         color = Color.White
                                     )
-                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Spacer(modifier = Modifier.height(4.dp))
                                     Text(
-                                        text = "Your payment history will appear here",
+                                        text = "Your offline payments will appear here",
                                         fontSize = 13.sp,
-                                        color = FlowpayTextLightGray,
-                                        textAlign = TextAlign.Center
+                                        color = FlowpayTextLightGray
                                     )
                                 }
                             }
@@ -1112,11 +846,9 @@ fun MainScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(28.dp))
             }
 
-            // Detail dialog for a tapped Recent Payments row — the same
-            // surface the history screen shows.
             selectedTransaction?.let { transaction ->
                 TransactionDetailDialog(
                     transaction = transaction,
@@ -1128,7 +860,6 @@ fun MainScreen(
                 )
             }
 
-            // Dialogs
             if (showPayContact) {
                 PayContactDialog(
                     onDismiss = { showPayContact = false },
@@ -1150,7 +881,7 @@ fun MainScreen(
             if (showOverlayPermissionDialog) {
                 PermissionExplanationDialog(
                     title = "Overlay Permission",
-                    message = "Flowpay needs overlay permission to show a payment UI anchor during the call. This keeps your transaction details visible while the call is in progress.",
+                    message = "Flowpay needs overlay permission to show the payment guide during the call.",
                     confirmButtonText = "Grant",
                     onConfirm = {
                         showOverlayPermissionDialog = false
@@ -1163,13 +894,10 @@ fun MainScreen(
             if (showSmsPermissionDialog) {
                 PermissionExplanationDialog(
                     title = "SMS Permission",
-                    message = "Flowpay reads incoming bank SMS only while a payment is in progress, to detect the confirmation. It never reads your inbox and nothing leaves the device.",
+                    message = "Flowpay reads incoming bank confirmation SMS locally to verify payments without internet.",
                     confirmButtonText = "Grant",
                     onConfirm = {
                         showSmsPermissionDialog = false
-                        // Only RECEIVE_SMS is declared in the manifest and
-                        // needed (the app never reads the inbox). The launcher's
-                        // callback runs pendingSmsAction once granted.
                         smsPermissionLauncher.launch(Manifest.permission.RECEIVE_SMS)
                     },
                     onDismiss = {
@@ -1187,16 +915,16 @@ fun TransactionItem(payment: PaymentDetails, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .height(90.dp)
+            .height(82.dp)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = FlowpaySurfaceDim),
+        colors = CardDefaults.cardColors(containerColor = FlowpayDarkGray),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 18.dp, vertical = 14.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -1208,20 +936,19 @@ fun TransactionItem(payment: PaymentDetails, onClick: () -> Unit) {
             ) {
                 Text(
                     text = payment.recipientName ?: payment.phoneNumber,
-                    fontSize = 16.sp,
+                    fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = Color.White,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = formatDate(payment.timestamp),
-                    fontSize = 14.sp,
-                    color = FlowpayTextPale,
+                    fontSize = 13.sp,
+                    color = FlowpayTextLightGray,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    fontWeight = FontWeight.Medium
+                    overflow = TextOverflow.Ellipsis
                 )
             }
 
@@ -1232,34 +959,25 @@ fun TransactionItem(payment: PaymentDetails, onClick: () -> Unit) {
 
 @Composable
 private fun TransactionItemAmount(amount: Double, status: PaymentStatus) {
-    // FAILED and CANCELLED read as "this payment did not go through" — a
-    // cross, not the same outgoing arrow a successful payment gets. Every
-    // other outcome (COMPLETED, PENDING, NEEDS_REVIEW, UNVERIFIED) keeps the
-    // arrow: this row has no separate status chip (unlike transaction
-    // history), so the icon is the only signal here.
     val failed = status == PaymentStatus.FAILED || status == PaymentStatus.CANCELLED
-    val tint = if (failed) FlowpayStatusError else LocalFlowpayAccentTheme.current.headerGradientStart
+    val tint = if (failed) FlowpayStatusError else Color(0xFF34D399)
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.End,
-        modifier = Modifier.padding(start = 8.dp)
+        horizontalArrangement = Arrangement.End
     ) {
         Text(
             text = stringResource(R.string.amount_rupees, CurrencyFormat.inr(amount)),
             fontSize = 16.sp,
             fontWeight = FontWeight.Bold,
-            color = LocalFlowpayAccentTheme.current.headerGradientStart,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            color = Color.White,
+            maxLines = 1
         )
-        Spacer(modifier = Modifier.width(8.dp))
+        Spacer(modifier = Modifier.width(6.dp))
         Icon(
             imageVector = if (failed) Icons.Default.Close else Icons.Default.ArrowOutward,
-            contentDescription = stringResource(
-                if (failed) R.string.cd_payment_failed else R.string.cd_payment_outgoing
-            ),
-            modifier = Modifier.size(18.dp),
+            contentDescription = null,
+            modifier = Modifier.size(16.dp),
             tint = tint
         )
     }
@@ -1274,8 +992,6 @@ fun PayContactDialog(
     val hostActivity = remember(context) { context.findComponentActivity() }
     var phoneNumber by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
-    // UPI 123Pay's IVR will not accept 5000 or more (AppConstants
-    // .UPI123PAY_MAX_AMOUNT = 4999), so the cap is enforced before dialling.
     val isOverCap = (amount.toLongOrNull() ?: 0L) > AppConstants.UPI123PAY_MAX_AMOUNT.toLong()
     var selectedContactName by remember { mutableStateOf<String?>(null) }
     var showContactPicker by remember { mutableStateOf(false) }
@@ -1302,238 +1018,4 @@ fun PayContactDialog(
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                selectedContactName?.let { name ->
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = LocalFlowpayAccentTheme.current.accent.copy(alpha = 0.15f)
-                        ),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Person,
-                                contentDescription = null,
-                                tint = LocalFlowpayAccentTheme.current.accent,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Sending to: $name",
-                                color = LocalFlowpayAccentTheme.current.accent,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-                    }
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.Top
-                ) {
-                    OutlinedTextField(
-                        value = phoneNumber,
-                        onValueChange = {
-                            if (it.all { char -> char.isDigit() } && it.length <= 10) {
-                                phoneNumber = it
-                                selectedContactName = null
-                            }
-                        },
-                        label = {
-                            Text(stringResource(R.string.home_field_mobile_label), color = FlowpayTextLightGray)
-                        },
-                        placeholder = {
-                            Text(stringResource(R.string.home_field_mobile_hint), color = FlowpayTextGray)
-                        },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true,
-                        modifier = Modifier.weight(1f),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
-                            focusedBorderColor = FlowpayOutlineGray,
-                            unfocusedBorderColor = FlowpayLightGray,
-                            focusedContainerColor = Color.Transparent,
-                            unfocusedContainerColor = Color.Transparent
-                        )
-                    )
-
-                    IconButton(
-                        onClick = {
-                            val pm = permissionManager
-                            if (pm == null) {
-                                Toast.makeText(
-                                    context.applicationContext,
-                                    "Unable to open contacts from this screen.",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                                return@IconButton
-                            }
-                            if (pm.hasContactPermission()) {
-                                showContactPicker = true
-                            } else {
-                                showContactPermissionDialog = true
-                            }
-                        },
-                        modifier = Modifier
-                            .padding(top = 8.dp)
-                            .size(48.dp)
-                            .background(
-                                color = LocalFlowpayAccentTheme.current.accent.copy(alpha = 0.2f),
-                                shape = RoundedCornerShape(8.dp)
-                            )
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.PermContactCalendar,
-                            contentDescription = "Select Contact",
-                            tint = LocalFlowpayAccentTheme.current.accent
-                        )
-                    }
-                }
-
-                OutlinedTextField(
-                    value = amount,
-                    onValueChange = {
-                        if (it.all { char -> char.isDigit() } && it.length <= 6) {
-                            amount = it
-                        }
-                    },
-                    label = {
-                        Text(stringResource(R.string.home_field_amount_label), color = FlowpayTextLightGray)
-                    },
-                    placeholder = {
-                        Text(stringResource(R.string.home_field_amount_hint), color = FlowpayTextGray)
-                    },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    isError = isOverCap,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
-                        focusedBorderColor = if (isOverCap) FlowpayStatusError else FlowpayOutlineGray,
-                        unfocusedBorderColor = if (isOverCap) FlowpayStatusError else FlowpayLightGray,
-                        focusedContainerColor = Color.Transparent,
-                        unfocusedContainerColor = Color.Transparent
-                    )
-                )
-
-                // Told here, in the dialog, while the number can still be
-                // corrected. The IVR itself only rejects an over-cap amount
-                // mid-call, after the user has already dialled.
-                if (isOverCap) {
-                    Text(
-                        text = Upi123CallStringBuilder.Reason.AMOUNT_ABOVE_CAP.messageFor(context),
-                        color = FlowpayStatusError,
-                        fontSize = 12.sp,
-                        lineHeight = 16.sp
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            val canTransfer = phoneNumber.length == 10 && amount.isNotEmpty() &&
-                amount != "0" && !isOverCap
-            TextButton(
-                onClick = { onConfirm(phoneNumber, amount) },
-                enabled = canTransfer
-            ) {
-                Text(
-                    stringResource(R.string.action_transfer),
-                    color = if (canTransfer) {
-                        LocalFlowpayAccentTheme.current.accent
-                    } else {
-                        FlowpayTextGray
-                    }
-                )
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.action_cancel), color = FlowpayTextLightGray)
-            }
-        }
-    )
-
-    if (showContactPicker) {
-        ContactPickerDialog(
-            onDismiss = { showContactPicker = false },
-            onContactSelected = { contact ->
-                phoneNumber = contact.phoneNumber
-                selectedContactName = contact.name
-                showContactPicker = false
-            }
-        )
-    }
-
-    if (showContactPermissionDialog) {
-        PermissionExplanationDialog(
-            title = "Contacts Permission",
-            message = "Flowpay needs access to your contacts so you can pick a recipient by name instead of typing their number.",
-            confirmButtonText = "Grant",
-            onConfirm = {
-                showContactPermissionDialog = false
-                contactPermissionLauncher.launch(Manifest.permission.READ_CONTACTS)
-            },
-            onDismiss = { showContactPermissionDialog = false }
-        )
-    }
-}
-
-@Composable
-fun PermissionExplanationDialog(
-    title: String,
-    message: String,
-    confirmButtonText: String,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = FlowpayDarkGray,
-        title = {
-            Text(
-                text = title,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.White
-            )
-        },
-        text = {
-            Text(
-                text = message,
-                fontSize = 14.sp,
-                color = FlowpayTextPale,
-                lineHeight = 20.sp
-            )
-        },
-        confirmButton = {
-            TextButton(
-                onClick = onConfirm,
-                colors = ButtonDefaults.textButtonColors(
-                    contentColor = LocalFlowpayAccentTheme.current.accent
-                )
-            ) {
-                Text(confirmButtonText)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.action_not_now), color = FlowpayTextLightGray)
-            }
-        }
-    )
-}
-
-// Utility functions
-fun formatDate(timestamp: Long): String {
-    val formatter = SimpleDateFormat("dd MMM, HH:mm", Locale("en", "IN"))
-    return formatter.format(Date(timestamp))
-}
+                s
