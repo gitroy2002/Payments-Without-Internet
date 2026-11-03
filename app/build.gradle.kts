@@ -89,12 +89,18 @@ android {
 }
         }
         debug {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            ndk {
+                abiFilters += listOf("arm64-v8a")
+            }
             isDebuggable = true
             buildConfigField("boolean", "DEBUG_LOGS", "true")
         }
     }
-    compileOptions {
+
+    compileOptions {    compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
