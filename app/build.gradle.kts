@@ -85,8 +85,8 @@ android {
             // alone so the x86_64 emulator matrix in instrumented.yml still
             // runs the app it's built for.
             ndk {
-                abiFilters += listOf("arm64-v8a", "armeabi-v7a")
-            }
+    abiFilters += listOf("arm64-v8a")
+}
         }
         debug {
             isMinifyEnabled = false
